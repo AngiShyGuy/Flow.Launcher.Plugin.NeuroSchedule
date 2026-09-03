@@ -1,0 +1,12 @@
+{
+  "ID": "e74e7632-354b-4611-9036-9f78b8f69125",
+  "ActionKeyword": "neuro",
+  "Name": "Neuro Schedule",
+  "Description": "Check Neuro-sama's upcoming stream schedule",
+  "Author": "AngiShyGuy",
+  "Version": "1.0.0",
+  "Language": "python",
+  "Website": "https://neuro.appstun.net/schedule/",
+  "ExecuteFileName": "main.py",
+  "IcoPath": "icon.png"
+}

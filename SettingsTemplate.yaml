@@ -1,0 +1,74 @@
+body:
+  - type: dropdown
+    attributes:
+      name: time_format
+      label: "Time Format"
+      defaultValue: "24-Hour (20:00)"
+      description: "Choose how stream times are displayed in search results"
+      options:
+        - "24-Hour (20:00)"
+        - "12-Hour AM/PM (8:00 PM)"
+
+  - type: checkbox
+    attributes:
+      name: hide_past_by_default
+      label: "Hide past streams by default"
+      defaultValue: false
+
+  - type: dropdown
+    attributes:
+      name: default_action
+      label: "Primary Action (Pressing Enter)"
+      defaultValue: "Open Twitch Channel"
+      description: "What happens when you press Enter on a stream entry"
+      options:
+        - "Open Twitch Channel"
+        - "Open Web Schedule"
+
+  - type: dropdown
+    attributes:
+      name: stream_duration
+      label: "Google Calendar Event Duration"
+      defaultValue: "2.5 Hours"
+      description: "Default duration for created Google Calendar events"
+      options:
+        - "2 Hours"
+        - "2.5 Hours"
+        - "3 Hours"
+
+  - type: checkbox
+    attributes:
+      name: show_neuro
+      label: "Show Neuro Streams"
+      defaultValue: true
+
+  - type: checkbox
+    attributes:
+      name: show_evil
+      label: "Show Evil Streams"
+      defaultValue: true
+
+  - type: checkbox
+    attributes:
+      name: show_twins
+      label: "Show Twins Streams (Neuro & Evil together)"
+      defaultValue: true
+
+  - type: checkbox
+    attributes:
+      name: show_vedal
+      label: "Show Vedal Streams"
+      defaultValue: true
+
+  - type: checkbox
+    attributes:
+      name: show_collab
+      label: "Show Collab Streams (Streams with guest streamers)"
+      defaultValue: true
+
+  - type: input
+    attributes:
+      name: excluded_keywords
+      label: "Exclude Streams by Title Keywords (Comma-Separated)"
+      defaultValue: ""
+      description: "Hide streams containing these words in title (e.g., Karaoke, Minecraft)"
