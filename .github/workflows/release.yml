@@ -22,13 +22,13 @@ jobs:
           prop_path: 'Version'
 
       - name: Create zip
-        run: zip -r Flow.Launcher.Plugin.NeuroSchedule.zip . -x '*.git*'
+        run: zip -r Flow.Launcher.Plugin.NeuroSchedule-v${{steps.version.outputs.prop}}.zip . -x '*.git*'
 
       - name: Publish release
         if: success()
         uses: softprops/action-gh-release@v1
         with:
-          files: 'Flow.Launcher.Plugin.NeuroSchedule.zip'
+          files: 'Flow.Launcher.Plugin.NeuroSchedule-v${{steps.version.outputs.prop}}.zip'
           tag_name: "v${{steps.version.outputs.prop}}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
