@@ -4,6 +4,7 @@ A [Flow Launcher](https://www.flowlauncher.com/) plugin that lets you check Neur
 
 > Schedule data is sourced from [Cloudburst's Unofficial Neuro-sama Schedule API](https://github.com/cloudburstwan/neuro-schedule-api).
 
+![Neuro Schedule Plugin](https://i.imgur.com/zFAcwth.png)
 ## Usage
 
 Type `neuro` (the default keyword) in Flow Launcher to pull up the week's stream schedule. Results are sorted chronologically and show the stream title, who's streaming, and the time in your local timezone.

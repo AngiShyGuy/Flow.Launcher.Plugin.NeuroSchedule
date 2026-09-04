@@ -67,28 +67,90 @@ def fetch_schedule():
         return []
 
 
-def parse_timestamp(timestamp_str):
-    """Parse ISO timestamp into a timezone-aware datetime object."""
+def parse_timestamp(raw):
+    """
+    Parse a timestamp value from the API into a timezone-aware datetime, or None.
+    """
+    if raw is None:
+        return None, False
+
+    timestamp_str = str(raw).strip()
+
+    if timestamp_str.lower() in ("", "none", "null", "n/a", "tbd", "unknown"):
+        return None, False
+
+    if "T" not in timestamp_str and ":" not in timestamp_str:
+        try:
+            d = datetime.strptime(timestamp_str[:10], "%Y-%m-%d")
+            return d.replace(tzinfo=timezone.utc), True
+        except ValueError:
+            pass
+
+    iso_str = timestamp_str[:-1] + "+00:00" if timestamp_str.endswith(("Z", "z")) else timestamp_str
     try:
-        return datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
-    except Exception:
-        return None
+        return datetime.fromisoformat(iso_str), False
+    except ValueError:
+        pass
+
+    return None, False
 
 
-def format_time(dt, use_12h=False):
-    """Convert datetime → human-readable string in local time."""
-    if not dt:
+def get_relative_time_str(dt, now_utc):
+    """Calculate human-readable relative time (e.g., 'In 2 hours' or '1 day ago')."""
+    if not dt or not now_utc:
         return ""
+
+    diff_seconds = (dt - now_utc).total_seconds()
+
+    if diff_seconds >= 0:
+        if diff_seconds < 3600:
+            mins = int(diff_seconds // 60)
+            if mins < 1:
+                return "In < 1 min"
+            return f"In {mins} min" if mins == 1 else f"In {mins} mins"
+        elif diff_seconds < 86400:
+            hours = int(diff_seconds // 3600)
+            return f"In {hours} hour" if hours == 1 else f"In {hours} hours"
+        else:
+            days = int(diff_seconds // 86400)
+            return f"In {days} day" if days == 1 else f"In {days} days"
+    else:
+        past_sec = abs(diff_seconds)
+        if past_sec < 3600:
+            mins = int(past_sec // 60)
+            if mins < 1:
+                return "< 1 min ago"
+            return f"{mins} min ago" if mins == 1 else f"{mins} mins ago"
+        elif past_sec < 86400:
+            hours = int(past_sec // 3600)
+            return f"{hours} hour ago" if hours == 1 else f"{hours} hours ago"
+        else:
+            days = int(past_sec // 86400)
+            return f"{days} day ago" if days == 1 else f"{days} days ago"
+
+
+def format_time(dt, use_12h=False, date_only=False, now_utc=None):
+    """
+    Convert a datetime → human-readable string in local time with relative time attached.
+    """
+    if not dt:
+        return "Time TBD"
     dt_local = dt.astimezone()
-    if use_12h:
-        return dt_local.strftime("%a %d %b · %I:%M %p")
-    return dt_local.strftime("%a %d %b · %H:%M")
+    if date_only:
+        return dt_local.strftime("%a %d %b · Time TBD")
+
+    base_time = dt_local.strftime("%a %d %b · %I:%M %p") if use_12h else dt_local.strftime("%a %d %b · %H:%M")
+
+    if now_utc is not None:
+        rel_str = get_relative_time_str(dt, now_utc)
+        if rel_str:
+            return f"{base_time} ({rel_str})"
+
+    return base_time
 
 
-def get_stream_icon(streamers):
-    """Determine icon path based on streamers present."""
-    streamers_set = set(streamers) if streamers else set()
-
+def get_stream_icon(streamers_set):
+    """Determine icon path directly using the streamers set."""
     if "Neuro" in streamers_set and "Evil" in streamers_set:
         return "assets/twins.png"
     elif "Neuro" in streamers_set:
@@ -101,31 +163,72 @@ def get_stream_icon(streamers):
     return "icon.png"
 
 
-def make_gcal_url(title, streamers, dt, duration_hours=2.5):
-    """Generate a pre-filled Google Calendar event creation URL in local time."""
+def make_gcal_url(title, streamers, dt, date_only=False, duration_hours=2.5):
+    """Generate a Google Calendar creation URL with support for both timed and All-Day events."""
     if not dt:
         return TWITCH_URL
 
     dt_local = dt.astimezone()
-    dt_end   = dt_local + timedelta(hours=duration_hours)
-
-    start_str = dt_local.strftime("%Y%m%dT%H%M%S")
-    end_str   = dt_end.strftime("%Y%m%dT%H%M%S")
-
     who = " & ".join(streamers) if streamers else "Neuro / Evil"
+
+    if date_only:
+        start_str = dt_local.strftime("%Y%m%d")
+        end_str   = (dt_local + timedelta(days=1)).strftime("%Y%m%d")
+        dates_param = f"{start_str}/{end_str}"
+    else:
+        dt_end    = dt_local + timedelta(hours=duration_hours)
+        start_str = dt_local.strftime("%Y%m%dT%H%M%S")
+        end_str   = dt_end.strftime("%Y%m%dT%H%M%S")
+        dates_param = f"{start_str}/{end_str}"
 
     params = {
         "action": "TEMPLATE",
         "text": title,
-        "dates": f"{start_str}/{end_str}",
+        "dates": dates_param,
         "details": f"Streamer(s): {who}\nWatch live at {TWITCH_URL}",
         "location": TWITCH_URL,
     }
 
-    if dt_local.tzinfo and hasattr(dt_local.tzinfo, "key") and dt_local.tzinfo.key:
+    if not date_only and dt_local.tzinfo and hasattr(dt_local.tzinfo, "key") and dt_local.tzinfo.key:
         params["ctz"] = dt_local.tzinfo.key
 
     return f"https://calendar.google.com/calendar/render?{urllib.parse.urlencode(params)}"
+
+
+def create_ics_content(title, streamers, dt, date_only=False, duration_hours=2.5):
+    """Construct a standard RFC 5545 iCalendar string."""
+    who = " & ".join(streamers) if streamers else "Neuro / Evil"
+    now_utc_str = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+    ics_lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//NeuroSchedule//EN",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+        "BEGIN:VEVENT",
+        f"UID:neuro-stream-{int(dt.timestamp())}@neuro.appstun.net",
+        f"DTSTAMP:{now_utc_str}",
+        f"SUMMARY:{title}",
+        f"DESCRIPTION:Streamer(s): {who}\\nWatch live at {TWITCH_URL}",
+        f"LOCATION:{TWITCH_URL}",
+    ]
+
+    if date_only:
+        start_str = dt.strftime("%Y%m%d")
+        end_str = (dt + timedelta(days=1)).strftime("%Y%m%d")
+        ics_lines.append(f"DTSTART;VALUE=DATE:{start_str}")
+        ics_lines.append(f"DTEND;VALUE=DATE:{end_str}")
+    else:
+        dt_utc = dt.astimezone(timezone.utc)
+        end_utc = dt_utc + timedelta(hours=duration_hours)
+        ics_lines.append(f"DTSTART:{dt_utc.strftime('%Y%m%dT%H%M%SZ')}")
+        ics_lines.append(f"DTEND:{end_utc.strftime('%Y%m%dT%H%M%SZ')}")
+
+    ics_lines.append("END:VEVENT")
+    ics_lines.append("END:VCALENDAR")
+
+    return "\r\n".join(ics_lines)
 
 
 def make_result(title, subtitle, icon="icon.png", context_data=None, url=TWITCH_URL, score=0):
@@ -172,11 +275,11 @@ class NeuroSchedule(FlowLauncher):
         excluded_keywords  = [kw.strip().lower() for kw in excluded_raw.split(",") if kw.strip()]
 
         # Search tokens
-        only_today    = "today" in tokens
-        only_tomorrow = "tomorrow" in tokens
-        only_next     = ("next" in tokens) or hide_past_default
-        only_collab   = "collab" in tokens
-        target_streamers = [FILTER_MAP[t] for t in tokens if t in FILTER_MAP]
+        only_today       = "today" in tokens
+        only_tomorrow    = "tomorrow" in tokens
+        only_next        = ("next" in tokens) or hide_past_default
+        only_collab      = "collab" in tokens
+        target_streamers = {FILTER_MAP[t] for t in tokens if t in FILTER_MAP}
 
         schedule = fetch_schedule()
 
@@ -195,16 +298,21 @@ class NeuroSchedule(FlowLauncher):
         tomorrow_date = today_date + timedelta(days=1)
 
         filtered_entries = []
+        all_valid_dts = []
 
         for entry in schedule:
             if not entry.get("live", False):
                 continue
 
+            timestamp     = entry.get("timestamp", "")
+            dt, date_only = parse_timestamp(timestamp)
+            
+            if dt is not None:
+                all_valid_dts.append(dt)
+
             streamers     = entry.get("streamers", [])
             streamers_set = set(streamers) if streamers else set()
             title         = entry.get("title", "Stream")
-            timestamp     = entry.get("timestamp", "")
-            dt            = parse_timestamp(timestamp)
 
             # Categorize stream
             is_twins  = ("Neuro" in streamers_set) and ("Evil" in streamers_set)
@@ -226,8 +334,7 @@ class NeuroSchedule(FlowLauncher):
                 continue
 
             # Filter out based on excluded title keywords
-            title_lower = title.lower()
-            if any(kw in title_lower for kw in excluded_keywords):
+            if excluded_keywords and any(kw in title.lower() for kw in excluded_keywords):
                 continue
 
             # Query token filters
@@ -246,20 +353,20 @@ class NeuroSchedule(FlowLauncher):
             if only_collab and not is_collab:
                 continue
 
-            if target_streamers and not any(ts in streamers_set for ts in target_streamers):
+            if target_streamers and not (target_streamers & streamers_set):
                 continue
 
-            filtered_entries.append((dt, streamers, title, timestamp))
+            filtered_entries.append((dt, date_only, streamers, streamers_set, title, timestamp))
 
-        # Explicitly sort chronologically by datetime
+        # Sort chronologically; entries with no parseable time go to the bottom
         filtered_entries.sort(key=lambda x: (x[0] is None, x[0]))
 
         results = []
 
-        for idx, (dt, streamers, title, timestamp) in enumerate(filtered_entries):
+        for idx, (dt, date_only, streamers, streamers_set, title, timestamp) in enumerate(filtered_entries):
             who  = " & ".join(streamers) if streamers else "Neuro / Evil"
-            when = format_time(dt, use_12h=use_12h) if dt else timestamp
-            icon = get_stream_icon(streamers)
+            when = format_time(dt, use_12h=use_12h, date_only=date_only, now_utc=now_utc)
+            icon = get_stream_icon(streamers_set)
 
             context_data = {
                 "title":     title,
@@ -267,6 +374,7 @@ class NeuroSchedule(FlowLauncher):
                 "who":       who,
                 "when":      when,
                 "timestamp": timestamp,
+                "date_only": date_only,
                 "icon":      icon,
             }
 
@@ -280,11 +388,7 @@ class NeuroSchedule(FlowLauncher):
             ))
 
         if not results:
-            valid_dts = [
-                dt for e in schedule if e.get("live", False)
-                and (dt := parse_timestamp(e.get("timestamp", "")))
-            ]
-            all_past = len(valid_dts) > 0 and all(dt < now_utc for dt in valid_dts)
+            all_past = len(all_valid_dts) > 0 and all(dt < now_utc for dt in all_valid_dts)
 
             if all_past and only_next:
                 results.append(make_result(
@@ -341,22 +445,36 @@ class NeuroSchedule(FlowLauncher):
         timestamp = data.get("timestamp", "")
         icon      = data.get("icon", "icon.png")
 
-        dt        = parse_timestamp(timestamp)
-        
+        dt, date_only = parse_timestamp(timestamp)
+
         duration_raw = str(self.settings.get("stream_duration", "2.5"))
         try:
             duration = float(duration_raw.split()[0])
         except Exception:
             duration = 2.5
 
-        gcal_url  = make_gcal_url(title, streamers, dt, duration_hours=duration) if dt else TWITCH_URL
+        if dt is not None:
+            gcal_url     = make_gcal_url(title, streamers, dt, date_only=date_only, duration_hours=duration)
+            gcal_sub     = "Open Google Calendar event form (All-Day Event)" if date_only else f"Open Google Calendar event form ({duration}h)"
+            ical_sub     = "Save .ics file to Downloads (All-Day Event)" if date_only else f"Save .ics file to Downloads({duration}h)"
+            gcal_action  = {"method": "open_url", "parameters": [gcal_url]}
+            ical_action  = {"method": "export_ical", "parameters": [title, streamers, timestamp]}
+        else:
+            gcal_sub    = "Time TBD — cannot create calendar event"
+            ical_sub    = "Time TBD — cannot create calendar event"
+            gcal_action = {"method": "open_url", "parameters": [WEB_SCHEDULE_URL]}
+            ical_action = {"method": "open_url", "parameters": [WEB_SCHEDULE_URL]}
+
         info_text = f"{title} ({who}) - {when}"
 
-        if dt:
+        if dt and not date_only:
             epoch = int(dt.timestamp())
             discord_text = f"<t:{epoch}:F> - <t:{epoch}:R> - {title}"
+        elif dt and date_only:
+            epoch = int(dt.timestamp())
+            discord_text = f"<t:{epoch}:D> - {title} (time TBD)"
         else:
-            discord_text = f"{title} ({when})"
+            discord_text = f"{title} - {when}"
 
         return [
             {
@@ -379,12 +497,15 @@ class NeuroSchedule(FlowLauncher):
             },
             {
                 "Title":    "Add to Google Calendar",
-                "SubTitle": f"Create event ({duration}h) with automatic notifications",
+                "SubTitle": gcal_sub,
                 "IcoPath":  "icon.png",
-                "JsonRPCAction": {
-                    "method":     "open_url",
-                    "parameters": [gcal_url],
-                },
+                "JsonRPCAction": gcal_action,
+            },
+            {
+                "Title":    "Export iCal File (.ics)",
+                "SubTitle": ical_sub,
+                "IcoPath":  "icon.png",
+                "JsonRPCAction": ical_action,
             },
             {
                 "Title":    "Copy Discord Format",
@@ -405,6 +526,30 @@ class NeuroSchedule(FlowLauncher):
                 },
             },
         ]
+
+    def export_ical(self, title, streamers, timestamp):
+        """Dynamically build and save an .ics file to Downloads when selected."""
+        dt, date_only = parse_timestamp(timestamp)
+        if not dt:
+            return
+
+        duration_raw = str(self.settings.get("stream_duration", "2.5"))
+        try:
+            duration = float(duration_raw.split()[0])
+        except Exception:
+            duration = 2.5
+
+        ics_content = create_ics_content(title, streamers, dt, date_only=date_only, duration_hours=duration)
+
+        safe_title = "".join(c for c in title if c.isalnum() or c in (" ", "-", "_")).strip()
+        filename = f"{safe_title}.ics" if safe_title else "stream.ics"
+
+        downloads_dir = os.path.join(os.path.expanduser("~"), "Downloads")
+        os.makedirs(downloads_dir, exist_ok=True)
+        file_path = os.path.join(downloads_dir, filename)
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(ics_content)
 
     def open_url(self, url):
         """Open a URL in the default browser."""

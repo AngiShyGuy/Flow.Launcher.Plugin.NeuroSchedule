@@ -28,9 +28,9 @@ body:
   - type: dropdown
     attributes:
       name: stream_duration
-      label: "Google Calendar Event Duration"
+      label: "Calendar Event Duration"
       defaultValue: "2.5 Hours"
-      description: "Default duration for created Google Calendar events"
+      description: "Default duration for timed calendar events"
       options:
         - "2 Hours"
         - "2.5 Hours"
