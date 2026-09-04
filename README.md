@@ -33,6 +33,7 @@ Keywords can be combined — e.g. `neuro neuro today` shows only Neuro's streams
   - Open Twitch Channel (Opens [www.twitch.tv/vedal987](https://www.twitch.tv/vedal987))
   - Open Web Schedule (Opens [neuro.appstun.net/schedule](https://neuro.appstun.net/schedule/))
   - Add to Google Calendar (pre-filled event with configurable duration)
+  - Export iCal File (Saves `.ics` file to Downloads)
   - Copy Discord Format (uses the same format as the official Discord schedule)
   - Copy Stream Details (plain text)
 
@@ -45,7 +46,7 @@ Open plugin settings in Flow Launcher to configure:
 | **Time Format** | Display times in 24-hour (`20:00`) or 12-hour AM/PM (`8:00 PM`) |
 | **Hide past streams by default** | Automatically filter out streams that have already started |
 | **Primary Action (Enter)** | Choose whether Enter opens the Twitch channel or the web schedule |
-| **Google Calendar Event Duration** | Default event length when adding to Google Calendar (2h, 2.5h, or 3h) |
+| **Calendar Event Duration** | Default event length for calendar events (2h, 2.5h, or 3h) |
 | **Show Neuro / Evil / Twins / Vedal / Collab Streams** | Toggle visibility for each streamer category |
 | **Exclude Streams by Title Keywords** | Comma-separated list of words — any stream with a matching title is hidden (e.g. `Karaoke, Minecraft`) |
 

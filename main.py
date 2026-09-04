@@ -456,7 +456,7 @@ class NeuroSchedule(FlowLauncher):
         if dt is not None:
             gcal_url     = make_gcal_url(title, streamers, dt, date_only=date_only, duration_hours=duration)
             gcal_sub     = "Open Google Calendar event form (All-Day Event)" if date_only else f"Open Google Calendar event form ({duration}h)"
-            ical_sub     = "Save .ics file to Downloads (All-Day Event)" if date_only else f"Save .ics file to Downloads({duration}h)"
+            ical_sub     = "Save .ics file to Downloads (All-Day Event)" if date_only else f"Save .ics file to Downloads ({duration}h)"
             gcal_action  = {"method": "open_url", "parameters": [gcal_url]}
             ical_action  = {"method": "export_ical", "parameters": [title, streamers, timestamp]}
         else:
