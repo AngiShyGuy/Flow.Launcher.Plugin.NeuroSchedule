@@ -4,7 +4,7 @@
   "Name": "Neuro Schedule",
   "Description": "Check Neuro-sama's upcoming stream schedule",
   "Author": "AngiShyGuy",
-  "Version": "1.1.1",
+  "Version": "1.1.2",
   "Language": "python",
   "Website": "https://github.com/AngiShyGuy/Flow.Launcher.Plugin.NeuroSchedule",
   "ExecuteFileName": "main.py",

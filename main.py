@@ -122,7 +122,7 @@ def get_relative_time_str(dt, now_utc):
                 return "< 1 min ago"
             return f"{mins} min ago" if mins == 1 else f"{mins} mins ago"
         elif past_sec < 86400:
-            hours = int(past_sec // 3600)
+            hours = int(past_sec // 86400)
             return f"{hours} hour ago" if hours == 1 else f"{hours} hours ago"
         else:
             days = int(past_sec // 86400)
@@ -151,14 +151,14 @@ def format_time(dt, use_12h=False, date_only=False, now_utc=None):
 
 def get_stream_icon(streamers_set):
     """Determine icon path directly using the streamers set."""
-    if "Neuro" in streamers_set and "Evil" in streamers_set:
+    if "Vedal" in streamers_set:
+        return "assets/vedal.png"
+    elif "Neuro" in streamers_set and "Evil" in streamers_set:
         return "assets/twins.png"
     elif "Neuro" in streamers_set:
         return "assets/neuro.png"
     elif "Evil" in streamers_set:
         return "assets/evil.png"
-    elif "Vedal" in streamers_set:
-        return "assets/vedal.png"
 
     return "icon.png"
 
@@ -169,7 +169,8 @@ def make_gcal_url(title, streamers, dt, date_only=False, duration_hours=2.5):
         return TWITCH_URL
 
     dt_local = dt.astimezone()
-    who = " & ".join(streamers) if streamers else "Neuro / Evil"
+    clean_streamers = [str(s).strip() for s in streamers if s and str(s).strip()] if streamers else []
+    who = " & ".join(clean_streamers) if clean_streamers else "Neuro / Evil"
 
     if date_only:
         start_str = dt_local.strftime("%Y%m%d")
@@ -197,7 +198,8 @@ def make_gcal_url(title, streamers, dt, date_only=False, duration_hours=2.5):
 
 def create_ics_content(title, streamers, dt, date_only=False, duration_hours=2.5):
     """Construct a standard RFC 5545 iCalendar string."""
-    who = " & ".join(streamers) if streamers else "Neuro / Evil"
+    clean_streamers = [str(s).strip() for s in streamers if s and str(s).strip()] if streamers else []
+    who = " & ".join(clean_streamers) if clean_streamers else "Neuro / Evil"
     now_utc_str = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
     ics_lines = [
@@ -310,8 +312,9 @@ class NeuroSchedule(FlowLauncher):
             if dt is not None:
                 all_valid_dts.append(dt)
 
-            streamers     = entry.get("streamers", [])
-            streamers_set = set(streamers) if streamers else set()
+            raw_streamers = entry.get("streamers", [])
+            streamers     = [str(s).strip() for s in raw_streamers if s and str(s).strip()] if isinstance(raw_streamers, list) else []
+            streamers_set = set(streamers)
             title         = entry.get("title", "Stream")
 
             # Categorize stream
@@ -364,9 +367,11 @@ class NeuroSchedule(FlowLauncher):
         results = []
 
         for idx, (dt, date_only, streamers, streamers_set, title, timestamp) in enumerate(filtered_entries):
-            who  = " & ".join(streamers) if streamers else "Neuro / Evil"
+            who  = " & ".join(streamers) if streamers else ""
             when = format_time(dt, use_12h=use_12h, date_only=date_only, now_utc=now_utc)
             icon = get_stream_icon(streamers_set)
+
+            subtitle = "  ·  ".join(p for p in (who, when) if p)
 
             context_data = {
                 "title":     title,
@@ -380,7 +385,7 @@ class NeuroSchedule(FlowLauncher):
 
             results.append(make_result(
                 title,
-                f"{who}  ·  {when}",
+                subtitle,
                 icon=icon,
                 context_data=context_data,
                 url=primary_url,
@@ -440,8 +445,8 @@ class NeuroSchedule(FlowLauncher):
 
         title     = data.get("title", "Stream")
         streamers = data.get("streamers", [])
-        who       = data.get("who", "")
-        when      = data.get("when", "")
+        who       = data.get("who", "").strip()
+        when      = data.get("when", "").strip()
         timestamp = data.get("timestamp", "")
         icon      = data.get("icon", "icon.png")
 
@@ -465,7 +470,8 @@ class NeuroSchedule(FlowLauncher):
             gcal_action = {"method": "open_url", "parameters": [WEB_SCHEDULE_URL]}
             ical_action = {"method": "open_url", "parameters": [WEB_SCHEDULE_URL]}
 
-        info_text = f"{title} ({who}) - {when}"
+        header = f"{title} ({who})" if who else title
+        info_text = f"{header} - {when}" if when else header
 
         if dt and not date_only:
             epoch = int(dt.timestamp())
@@ -474,7 +480,7 @@ class NeuroSchedule(FlowLauncher):
             epoch = int(dt.timestamp())
             discord_text = f"<t:{epoch}:D> - {title} (time TBD)"
         else:
-            discord_text = f"{title} - {when}"
+            discord_text = f"{title} - {when}" if when else title
 
         return [
             {
